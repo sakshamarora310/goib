@@ -132,6 +132,15 @@ func (a *App) commandDetails(cmd *cobra.Command) string {
 				{"password", credentialProtectionDescription()},
 			}),
 		}, "\n")
+	case "ib auth":
+		return sectionWithRows("Azure SSO", [][]string{
+			{"configure", "ib auth configure --tenant-id TENANT --client-id CLIENT"},
+			{"login", "opens the system browser and caches the signed-in Azure identity"},
+			{"gating", "WAPI requests require a valid Azure SSO identity before using the saved Infoblox service account"},
+			{"tokens", "Azure tokens stay local and are not sent to Infoblox WAPI"},
+			{"audit", "successful write audit events include sso_user, sso_tenant, and subject identifiers"},
+			{"groups", "--allowed-groups accepts Azure group object IDs when group claims are emitted"},
+		})
 	case "ib dns":
 		return sectionWithRows("Context Overrides", [][]string{
 			{"zone", "--zone/-z overrides ib dns zone use, IB_ZONE, and configured default for one command"},

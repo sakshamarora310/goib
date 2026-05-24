@@ -27,6 +27,11 @@ type auditEvent struct {
 	EventType  string         `json:"event_type"`
 	Host       string         `json:"host"`
 	User       string         `json:"user"`
+	SSOProvider string         `json:"sso_provider,omitempty"`
+	SSOUser     string         `json:"sso_user,omitempty"`
+	SSOTenant   string         `json:"sso_tenant,omitempty"`
+	SSOSubject  string         `json:"sso_subject,omitempty"`
+	SSOObjectID string         `json:"sso_object_id,omitempty"`
 	Profile    string         `json:"profile"`
 	Action     string         `json:"action"`
 	Operation  string         `json:"operation"`
@@ -104,6 +109,7 @@ func (a *App) emitAuditEventWithSettings(settings ConfigSettings, profileName st
 	if err != nil || strings.TrimSpace(host) == "" {
 		host = "unknown"
 	}
+	sso := a.auditSSOIdentity(settings)
 	event := auditEvent{
 		TS:         now.UTC().Format(time.RFC3339Nano),
 		LocalTime:  local.Format(time.RFC3339Nano),
@@ -112,6 +118,11 @@ func (a *App) emitAuditEventWithSettings(settings ConfigSettings, profileName st
 		EventType:  "audit",
 		Host:       host,
 		User:       currentAuditUser(),
+		SSOProvider: sso.Provider,
+		SSOUser:     sso.DisplayName(),
+		SSOTenant:   sso.TenantID,
+		SSOSubject:  sso.Subject,
+		SSOObjectID: sso.ObjectID,
 		Profile:    profileName,
 		Action:     action,
 		Operation:  operation,

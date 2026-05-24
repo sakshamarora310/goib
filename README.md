@@ -30,8 +30,11 @@ responsive.
   worker-limited global search, and stale-while-revalidate refreshes.
 - Dynamic shell completion for profiles, views, zones, records, flags, record
   types, and output formats from the live `ib` binary.
+- Optional Azure SSO gate for WAPI commands, using browser login while the
+  saved Infoblox service account performs the actual WAPI calls.
 - Optional JSON Lines audit logging for successful create, edit, and delete
-  actions, with file/syslog support on Linux and Windows Event Log support on Windows.
+  actions, with Azure SSO identity fields plus file/syslog support on Linux and
+  Windows Event Log support on Windows.
 - Compact operator output with colorful tables, current-context footers,
   JSON/CSV output, and progress display for larger searches.
 
@@ -111,6 +114,26 @@ By default, profiles live under `~/.ib/`. On Linux, `ib config new --global-conf
 
 Audit logging is disabled by default. When enabled during `ib config new` or `ib config edit`, only successful write actions are logged: DNS record create/edit/delete, DNS zone create/delete, PTR side effects from A/AAAA workflows, and config profile create/edit/delete. Read, list, search, cache, and completion operations are not logged. Linux can log to JSON Lines files or syslog; Windows can log to Windows Event Log or a JSON Lines file. File logging defaults to `~/.ib/audit.jsonl` for local profiles, `/etc/ib/audit.jsonl` for Linux global profiles, and the current config directory on Windows. The file option warns that writable logs are weaker audit evidence, lets you return to method selection, and tests that the chosen path can be opened for writing before saving. Audit failures print a warning but do not fail the completed write action. Secret-looking fields such as passwords, keys, credentials, tokens, and secrets are redacted.
 
+Azure SSO can be enabled after a normal Infoblox profile exists. Register a
+public-client/native Azure app with a redirect URI for
+`http://localhost/callback`, then configure and sign in:
+
+```bash
+ib auth configure --tenant-id contoso.onmicrosoft.com --client-id 11111111-2222-3333-4444-555555555555
+ib auth login
+ib auth status
+```
+
+When SSO is enabled, WAPI commands require a valid cached Azure login before
+the saved Infoblox service account is used. Azure tokens are not sent to WAPI;
+they authorize local CLI use and identify the operator for audit. Tokens are
+cached under the local `~/.ib` directory and encrypted with the same local
+protection used for passwords. Add `--allowed-groups` with comma-separated
+Azure group object IDs when the app emits group claims and you want to restrict
+CLI use to specific groups. Audit events include `sso_user`, `sso_tenant`,
+`sso_subject`, and `sso_object_id` so changes can be traced back to the
+signed-in Azure user.
+
 ## DNS 
 
 DNS commands use this context order:
@@ -146,16 +169,19 @@ ib dns --view "DNS Zone View" search app
 | Module | Purpose | Start here |
 | --- | --- | --- |
 | `config` | Manage profiles, encrypted credentials, completion, and cache. | `ib config new --default` |
+| `auth` | Configure Azure SSO, browser login, token cache, and command gating. | `ib auth configure` |
 | `dns` | Manage Infoblox DNS views, zones, records, searches, and context overrides. | `ib dns list` |
 | `net` | Manage IPAM network views, IPv4 networks and containers, addresses, and next-IP lookups. | `ib net list` |
 
 ## How It Works
 
-`cmd/ib/main.go` starts the Cobra CLI and hands command behavior to `internal/ibcli`. Profile loading decrypts the stored password, resolves the current DNS view/zone, and builds a WAPI client. GET requests can use a configured GCM read endpoint, while create, update, and delete requests always use the primary server.
+`cmd/ib/main.go` starts the Cobra CLI and hands command behavior to `internal/ibcli`. Profile loading decrypts the stored password, resolves the current DNS view/zone, and builds a WAPI client. When Azure SSO is enabled, each WAPI request first checks or refreshes the cached Azure identity and opens a browser login when an interactive user needs to sign in. GET requests can use a configured GCM read endpoint, while create, update, and delete requests always use the primary server.
 
 DNS listing/search and IPAM read workflows prefer SQLite cache rows from the selected local or global config scope. Freshness is calculated from `cached_at + cache_ttl`; stale rows inside `records_cache_swr_ttl` are returned immediately while one detached refresh process updates the cache. DNS records revalidate with the zone serial before refreshing `/allrecords`; IPAM cache refreshes skip serial checks and re-download the relevant WAPI object.
 
 Audit events are emitted only after successful write operations and use one JSON object per event for Splunk/Sentinel-style ingestion. Each event includes UTC time, local time, timezone, host, OS user, profile, action, operation, target, result, and redacted data.
+When Azure SSO is enabled, audit events also include the signed-in Azure user
+and stable Azure identifiers.
 
 For source builds, development checks, and packaging notes, see
 [Build From Source](docs/build-from-source.md). For cache diagrams and worker
@@ -169,6 +195,17 @@ behavior, see [Performance & Caching](docs/performance-caching.md).
 | --- | --- |
 | `ib` | Print top-level usage and end with the current profile, DNS view, and DNS zone context. |
 | `ib -v`, `ib --version` | Print the version number and AEST build date. |
+
+### Auth
+
+| Command | Description |
+| --- | --- |
+| `ib auth` | Show Azure SSO status. |
+| `ib auth configure --tenant-id TENANT --client-id CLIENT` | Enable Azure SSO gating for WAPI commands. Add `--allowed-groups` with Azure group object IDs to restrict use. |
+| `ib auth login` | Open a browser, complete Azure login, and cache the resulting identity. |
+| `ib auth status` | Show whether SSO is configured and whether a cached login is valid. |
+| `ib auth logout` | Clear cached Azure SSO tokens. |
+| `ib auth disable` | Disable Azure SSO gating without removing the Infoblox profile. |
 
 ### Config
 

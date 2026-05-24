@@ -936,6 +936,11 @@ func configMetadataTableRows(merged mergedConfigData) [][]string {
 		{configAuditLoggingEnabledKey, strconv.FormatBool(settings.AuditLoggingEnabled)},
 		{configAuditLoggingMethodKey, settings.AuditLogMethod},
 		{configAuditLogFileKey, settings.AuditLogFile},
+		{configSSOEnabledKey, strconv.FormatBool(settings.SSOEnabled)},
+		{configSSOTenantIDKey, settings.SSOTenantID},
+		{configSSOClientIDKey, settings.SSOClientID},
+		{configSSOScopesKey, settings.SSOScopes},
+		{configSSOAllowedGroupsKey, settings.SSOAllowedGroups},
 	}
 	if settings.GlobalGroup != "" {
 		rows = append(rows, []string{configGlobalGroupKey, settings.GlobalGroup})

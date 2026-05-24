@@ -63,6 +63,11 @@ func writePlainTestConfig(t *testing.T, path string, defaultProfile string, prof
 	builder.WriteString("audit_logging_enabled = false\n")
 	builder.WriteString("audit_logging_method = " + defaultAuditLogMethod() + "\n")
 	builder.WriteString("audit_log_file = \n")
+	builder.WriteString("sso_enabled = false\n")
+	builder.WriteString("sso_azure_tenant_id = \n")
+	builder.WriteString("sso_azure_client_id = \n")
+	builder.WriteString("sso_azure_scopes = " + defaultSSOScopes + "\n")
+	builder.WriteString("sso_azure_allowed_groups = \n")
 	if globalGroup != "" {
 		builder.WriteString("global_group = " + globalGroup + "\n")
 	}
@@ -574,6 +579,12 @@ func TestConfigListShowsMetadataTable(t *testing.T) {
 		auditLoggingEnabledSet:         true,
 		AuditLogMethod:                 auditLogMethodFile,
 		AuditLogFile:                   filepath.Join(app.ConfigDir, "audit.jsonl"),
+		SSOEnabled:                    true,
+		ssoEnabledSet:                 true,
+		SSOTenantID:                   "contoso.onmicrosoft.com",
+		SSOClientID:                   "11111111-2222-3333-4444-555555555555",
+		SSOScopes:                     defaultSSOScopes,
+		SSOAllowedGroups:              "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
 	})
 	var stdout bytes.Buffer
 	app.Stdout = &stdout
@@ -608,6 +619,16 @@ func TestConfigListShowsMetadataTable(t *testing.T) {
 		"file",
 		"audit_log_file",
 		filepath.Join(app.ConfigDir, "audit.jsonl"),
+		"sso_enabled",
+		"true",
+		"sso_azure_tenant_id",
+		"contoso.onmicrosoft.com",
+		"sso_azure_client_id",
+		"11111111-2222-3333-4444-555555555555",
+		"sso_azure_scopes",
+		defaultSSOScopes,
+		"sso_azure_allowed_groups",
+		"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("config list metadata missing %q:\n%s", want, output)
@@ -754,6 +775,11 @@ func TestWriteConfigProfilesEncryptsPasswordAndReadsItBack(t *testing.T) {
 		"audit_logging_enabled = false",
 		"audit_logging_method = " + defaultAuditLogMethod(),
 		"audit_log_file = ",
+		"sso_enabled = false",
+		"sso_azure_tenant_id = ",
+		"sso_azure_client_id = ",
+		"sso_azure_scopes = " + defaultSSOScopes,
+		"sso_azure_allowed_groups = ",
 	} {
 		if !strings.Contains(string(raw), want) {
 			t.Fatalf("config missing %q:\n%s", want, raw)
@@ -895,6 +921,12 @@ audit_logging_method = nowhere
 	if settings.AuditLogMethod != defaultAuditLogMethod() {
 		t.Fatalf("audit log method = %q, want %q", settings.AuditLogMethod, defaultAuditLogMethod())
 	}
+	if settings.SSOEnabled {
+		t.Fatalf("sso enabled = true, want false fallback")
+	}
+	if settings.SSOScopes != defaultSSOScopes {
+		t.Fatalf("sso scopes = %q, want %q", settings.SSOScopes, defaultSSOScopes)
+	}
 }
 
 func TestReadConfigSettingsAllowsDisabledCompletionPrefetch(t *testing.T) {
@@ -909,6 +941,11 @@ completion_cache_prefetch = disabled
 audit_logging_enabled = false
 audit_logging_method = file
 audit_log_file =
+sso_enabled = false
+sso_azure_tenant_id =
+sso_azure_client_id =
+sso_azure_scopes = openid profile email offline_access
+sso_azure_allowed_groups =
 `
 	if err := os.WriteFile(app.ConfigFile, []byte(raw), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)

@@ -9,11 +9,17 @@ ib \- operator-focused Infoblox DNS CLI
 is a command line interface for managing Infoblox DNS and IPAM records from the shell.
 It supports profile setup, encrypted credentials, DNS view and zone context,
 record workflows, IPAM network lookup, cache inspection, next available IP
-lookup, optional write-action audit logging, and shell completion.
+lookup, optional Azure SSO command gating, write-action audit logging, and
+shell completion.
 .SH COMMANDS
 .TP
 .B ib config
 Manage profiles, completion, and cache data.
+.TP
+.B ib auth
+Configure Azure SSO, open browser login, inspect cached login status, and
+enable SSO gating before WAPI requests use the saved Infoblox profile. Azure
+tokens stay local and are not sent to Infoblox WAPI.
 .TP
 .B ib dns
 Manage DNS views, zones, records, and searches.
@@ -42,6 +48,12 @@ Print the version number and AEST build date.
 .TP
 .B ib config new --default
 Create a default Infoblox profile and optionally enable audit logging.
+.TP
+.B ib auth configure --tenant-id contoso.onmicrosoft.com --client-id 11111111-2222-3333-4444-555555555555
+Enable Azure SSO gating for WAPI commands.
+.TP
+.B ib auth login
+Open a browser, complete Azure SSO, and cache encrypted local tokens.
 .TP
 .B ib config use PROFILE
 Set the local default profile override. PROFILE may be local or a merged Linux
@@ -99,6 +111,9 @@ builds write new password tokens with user-scope DPAPI instead.
 .I ~/.ib/cache.sqlite3
 Local DNS/IPAM cache database.
 .TP
+.I ~/.ib/sso-token.json
+Encrypted local Azure SSO token cache used when SSO gating is enabled.
+.TP
 .I ~/.ib/audit.jsonl
 Default local JSON Lines audit log file when file audit logging is enabled.
 .TP
@@ -128,7 +143,9 @@ one JSON object per line and redact password, key, credential, token, and secret
 fields. Selecting the file sink warns about writable log-file risk, allows
 returning to method selection, and tests that the path can be opened for
 writing before saving. Audit sink failures print a warning and do not fail the
-completed write.
+completed write. When Azure SSO gating is enabled and a valid cached identity is
+available, write audit events also include the signed-in Azure user, tenant,
+subject, and object identifiers.
 .SH ENVIRONMENT
 .TP
 .B IB_SEARCH_DEBUG=1

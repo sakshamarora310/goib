@@ -99,6 +99,9 @@ type App struct {
 	tlsRootCAs                  *x509.CertPool
 	configScope                 configScope
 	globalConfigGroup           string
+	browserOpener              func(string) error
+	ssoIdentity                *ssoIdentity
+	ssoIdentityKey             string
 }
 
 func NewDefaultApp() (*App, error) {
@@ -247,6 +250,7 @@ Common usage:
 	}
 
 	root.AddCommand(a.configCommand())
+	root.AddCommand(a.authCommand())
 	root.AddCommand(a.dnsCommand())
 	root.AddCommand(a.netCommand())
 	a.installHelp(root)

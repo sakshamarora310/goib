@@ -43,6 +43,11 @@ completion_cache_prefetch = true
 audit_logging_enabled = false
 audit_logging_method = file
 audit_log_file =
+sso_enabled = false
+sso_azure_tenant_id =
+sso_azure_client_id =
+sso_azure_scopes = openid profile email offline_access
+sso_azure_allowed_groups =
 global_group = ibusers
 ```
 
@@ -75,6 +80,8 @@ On Linux, `ib config new --global-config [PROFILE]` writes the profile to `/etc/
 After username and password entry, `ib config new` and `ib config edit` validate credentials with a small WAPI `grid` read before WAPI version setup. Authentication and authorization failures are summarized and return to the credential prompts without printing raw server response bodies.
 
 `ib config new` and `ib config edit` ask whether audit logging should be enabled after DNS view and default-zone selection. Existing configs default to the saved audit settings; new profiles default to disabled. Config profile create/edit/delete audit data redacts password values and any key, credential, token, or secret-looking fields.
+
+`ib auth configure` enables an Azure SSO gate for WAPI requests after a normal Infoblox profile exists. `ib auth login` uses browser-based authorization code + PKCE with a localhost callback and caches encrypted Azure tokens under the local `~/.ib` directory. Azure tokens are not sent to Infoblox WAPI; the Azure identity authorizes local CLI use and enriches audit logs, while the saved Infoblox service account still performs WAPI calls. Optional `sso_azure_allowed_groups` values are Azure group object IDs and require group claims in the ID token.
 
 `ib config new` and `ib config edit` Step 05 (`Read Endpoint`) automatically discovers Grid Master Candidates from the primary Grid Master. Candidates with Read-Only API disabled are reported with an indented green `INFO:` line and are not saved. Candidates with Read-Only API enabled must also pass a direct WAPI GET probe before being saved as `read_server`. If no candidate exists or no candidate passes the probe, `read_server` is left blank so both reads and writes use the primary server.
 

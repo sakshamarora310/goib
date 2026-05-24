@@ -94,6 +94,42 @@ func TestAuditEventIncludesUTCAndLocalTimeAndRedactsSecrets(t *testing.T) {
 	}
 }
 
+func TestAuditEventIncludesSSOIdentity(t *testing.T) {
+	app := testApp(t)
+	events := captureAuditEvents(t, app)
+	settings := defaultConfigSettings()
+	settings.AuditLoggingEnabled = true
+	settings.auditLoggingEnabledSet = true
+	settings.AuditLogMethod = auditLogMethodFile
+	settings.SSOEnabled = true
+	settings.ssoEnabledSet = true
+	settings.SSOTenantID = "99999999-8888-7777-6666-555555555555"
+	settings.SSOClientID = "11111111-2222-3333-4444-555555555555"
+	identity := ssoIdentity{
+		Provider:  ssoProviderAzure,
+		Username:  "alex@example.com",
+		TenantID:  settings.SSOTenantID,
+		ClientID:  settings.SSOClientID,
+		ObjectID:  "12345678-1234-1234-1234-123456789abc",
+		Subject:   "subject-value",
+		ExpiresAt: time.Now().Add(time.Hour).Unix(),
+	}
+	app.setSSOIdentity(ssoSettingsKey(settings), identity)
+
+	app.emitAuditEventWithSettings(settings, "demo", "create", "dns.record.create", "DNS_RECORD", "app.example.com", nil)
+
+	if len(*events) != 1 {
+		t.Fatalf("audit events = %d, want 1", len(*events))
+	}
+	event := (*events)[0]
+	if event.SSOProvider != ssoProviderAzure || event.SSOUser != "alex@example.com" || event.SSOTenant != settings.SSOTenantID {
+		t.Fatalf("sso audit fields = %#v", event)
+	}
+	if event.SSOObjectID != identity.ObjectID || event.SSOSubject != identity.Subject {
+		t.Fatalf("sso subject fields = %#v", event)
+	}
+}
+
 func TestAuditFileSinkWritesJSONL(t *testing.T) {
 	app := testApp(t)
 	logPath := filepath.Join(t.TempDir(), "audit.jsonl")

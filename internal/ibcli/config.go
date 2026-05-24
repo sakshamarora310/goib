@@ -29,7 +29,14 @@ const (
 	configAuditLoggingEnabledKey          = "audit_logging_enabled"
 	configAuditLoggingMethodKey           = "audit_logging_method"
 	configAuditLogFileKey                 = "audit_log_file"
+	configSSOEnabledKey                   = "sso_enabled"
+	configSSOTenantIDKey                  = "sso_azure_tenant_id"
+	configSSOClientIDKey                  = "sso_azure_client_id"
+	configSSOScopesKey                    = "sso_azure_scopes"
+	configSSOAllowedGroupsKey             = "sso_azure_allowed_groups"
 )
+
+const defaultSSOScopes = "openid profile email offline_access"
 
 type Profile struct {
 	Name        string
@@ -56,6 +63,12 @@ type ConfigSettings struct {
 	auditLoggingEnabledSet         bool
 	AuditLogMethod                 string
 	AuditLogFile                   string
+	SSOEnabled                    bool
+	ssoEnabledSet                 bool
+	SSOTenantID                   string
+	SSOClientID                   string
+	SSOScopes                     string
+	SSOAllowedGroups              string
 }
 
 func defaultConfigSettings() ConfigSettings {
@@ -69,6 +82,9 @@ func defaultConfigSettings() ConfigSettings {
 		AuditLoggingEnabled:            false,
 		auditLoggingEnabledSet:         true,
 		AuditLogMethod:                 defaultAuditLogMethod(),
+		SSOEnabled:            false,
+		ssoEnabledSet:         true,
+		SSOScopes:             defaultSSOScopes,
 	}
 }
 
@@ -94,10 +110,21 @@ func (s ConfigSettings) complete() ConfigSettings {
 		s.AuditLoggingEnabled = defaults.AuditLoggingEnabled
 		s.auditLoggingEnabledSet = true
 	}
+	if !s.ssoEnabledSet {
+		s.SSOEnabled = defaults.SSOEnabled
+		s.ssoEnabledSet = true
+	}
 	s.AuditLogMethod = normalizeAuditLogMethod(s.AuditLogMethod)
 	if s.AuditLogMethod == "" {
 		s.AuditLogMethod = defaults.AuditLogMethod
 	}
+	s.SSOTenantID = strings.TrimSpace(s.SSOTenantID)
+	s.SSOClientID = strings.TrimSpace(s.SSOClientID)
+	s.SSOScopes = normalizeSpaceList(s.SSOScopes)
+	if s.SSOScopes == "" {
+		s.SSOScopes = defaults.SSOScopes
+	}
+	s.SSOAllowedGroups = normalizeCommaList(s.SSOAllowedGroups)
 	return s
 }
 
@@ -125,6 +152,27 @@ func configSettingsFromSections(sections map[string]map[string]string) (ConfigSe
 	}
 	if raw, ok := meta[configAuditLogFileKey]; ok {
 		settings.AuditLogFile = strings.TrimSpace(raw)
+	} else {
+		missing = true
+	}
+	settings.SSOEnabled, settings.ssoEnabledSet, missing = boolSetting(meta, configSSOEnabledKey, settings.SSOEnabled, missing)
+	if raw, ok := meta[configSSOTenantIDKey]; ok {
+		settings.SSOTenantID = strings.TrimSpace(raw)
+	} else {
+		missing = true
+	}
+	if raw, ok := meta[configSSOClientIDKey]; ok {
+		settings.SSOClientID = strings.TrimSpace(raw)
+	} else {
+		missing = true
+	}
+	if raw, ok := meta[configSSOScopesKey]; ok {
+		settings.SSOScopes = strings.TrimSpace(raw)
+	} else {
+		missing = true
+	}
+	if raw, ok := meta[configSSOAllowedGroupsKey]; ok {
+		settings.SSOAllowedGroups = strings.TrimSpace(raw)
 	} else {
 		missing = true
 	}
@@ -268,6 +316,27 @@ func parseBool(value string, fallback bool) bool {
 	default:
 		return fallback
 	}
+}
+
+func normalizeSpaceList(value string) string {
+	return strings.Join(strings.Fields(strings.TrimSpace(value)), " ")
+}
+
+func normalizeCommaList(value string) string {
+	fields := strings.FieldsFunc(value, func(r rune) bool {
+		return r == ',' || r == '\n' || r == '\t' || r == ' '
+	})
+	cleaned := make([]string, 0, len(fields))
+	seen := map[string]bool{}
+	for _, field := range fields {
+		item := strings.TrimSpace(field)
+		if item == "" || seen[item] {
+			continue
+		}
+		seen[item] = true
+		cleaned = append(cleaned, item)
+	}
+	return strings.Join(cleaned, ",")
 }
 
 func (a *App) ensureConfigDir() error {
@@ -585,6 +654,11 @@ func (a *App) writeConfigProfilesWithSettingsMode(defaultProfile string, profile
 	builder.WriteString(configAuditLoggingEnabledKey + " = " + strconv.FormatBool(settings.AuditLoggingEnabled) + "\n")
 	builder.WriteString(configAuditLoggingMethodKey + " = " + settings.AuditLogMethod + "\n")
 	builder.WriteString(configAuditLogFileKey + " = " + settings.AuditLogFile + "\n")
+	builder.WriteString(configSSOEnabledKey + " = " + strconv.FormatBool(settings.SSOEnabled) + "\n")
+	builder.WriteString(configSSOTenantIDKey + " = " + settings.SSOTenantID + "\n")
+	builder.WriteString(configSSOClientIDKey + " = " + settings.SSOClientID + "\n")
+	builder.WriteString(configSSOScopesKey + " = " + settings.SSOScopes + "\n")
+	builder.WriteString(configSSOAllowedGroupsKey + " = " + settings.SSOAllowedGroups + "\n")
 	if a.activeConfigIsGlobal() {
 		builder.WriteString(configGlobalGroupKey + " = " + settings.GlobalGroup + "\n")
 	}

@@ -26,13 +26,14 @@ func (e *WapiError) Error() string {
 }
 
 type WapiClient struct {
-	Server      string
-	ReadServer  string
-	WAPIVersion string
-	Username    string
-	Password    string
-	View        string
-	httpClient  *http.Client
+	Server        string
+	ReadServer    string
+	WAPIVersion   string
+	Username      string
+	Password      string
+	View          string
+	httpClient    *http.Client
+	beforeRequest func() error
 }
 
 const minWAPIIdleConns = 32
@@ -72,6 +73,7 @@ func (a *App) newClient(profile Profile) *WapiClient {
 			Timeout:   time.Duration(timeout) * time.Second,
 			Transport: transport,
 		},
+		beforeRequest: a.ensureSSOAuthenticated,
 	}
 }
 
@@ -125,6 +127,11 @@ func stripWAPIPath(path string) string {
 
 func (c *WapiClient) Request(method, objectPath string, params url.Values, payload any) (any, error) {
 	method = strings.ToUpper(strings.TrimSpace(method))
+	if c.beforeRequest != nil {
+		if err := c.beforeRequest(); err != nil {
+			return nil, err
+		}
+	}
 
 	// Only GET is allowed to use the read endpoint. All write verbs stay on the
 	// primary Grid Master because GCM read-only API support is not writable.
